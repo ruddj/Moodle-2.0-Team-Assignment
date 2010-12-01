@@ -1,0 +1,29 @@
+/*
+replace the following code to the function 'assignment_get_tii_file_info($file)'
+in '/mod/assignment/lib.php'.
+*/
+
+function assignment_get_tii_file_info($file) {
+    global $CFG;
+    $return = new object();
+    $assignmentid = $file->instance;
+    
+    $assignment = get_record('assignment', 'id', $assignmentid);
+    //this $assignment record cannot be null and it has been validated in turnitinlib.php
+    if ($assignment->assignmenttype == 'team') {
+        $cm = get_coursemodule_from_instance('assignment', $assignment->id, $file->course); 
+        $course = get_record("course", "id", $assignment->course);
+        require_once("$CFG->dirroot/mod/assignment/type/team/assignment.class.php");
+        $assignmentinstance = new assignment_team($cm->id, $assignment, $cm, $course);
+        $team = $assignmentinstance->get_user_team($file->userid );
+        if (! empty($team)) {
+            $return->filepath = $CFG->dataroot.'/'.$file->course.'/moddata/assignment/'.$file->instance.'/'.'team'.'/'.$team->id.'/';
+        } else {
+            return null;
+        }
+        
+    } else {
+        $return->filepath = $CFG->dataroot.'/'.$file->course.'/moddata/assignment/'.$file->instance.'/'.$file->userid.'/';
+    }   
+    return $return;
+ }
