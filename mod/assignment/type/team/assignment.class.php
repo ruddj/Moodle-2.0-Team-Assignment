@@ -14,8 +14,7 @@ class assignment_team extends assignment_upload {
     }
 
     function view() {
-        session_start();
-        global $USER;
+        global $USER, $OUTPUT;
 
         $joinaction = optional_param('act_jointeam', NULL, PARAM_ALPHA);
         $removeaction = optional_param('act_removemember', NULL, PARAM_ALPHA);
