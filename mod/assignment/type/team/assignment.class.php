@@ -1875,7 +1875,9 @@ class assignment_team extends assignment_upload {
         $grademenu = make_grades_menu($this->assignment->grade);
 
         //if (($ausers = get_records_sql($select.$sql.$sort, $table->get_page_start(), $table->get_page_size())) !== false) {
-	if (($ausers = $DB->get_records_sql($select.$sql.$sort, $param) {
+	//TODO: Check following SQL syntax and above get_sql_where
+	$ausers = $DB->get_records_sql($select.$sql.$sort, $param);
+	if (!empty($ausers)) {
             $grading_info = grade_get_grades($this->course->id, 'mod', 'assignment', $this->assignment->id, array_keys($ausers));
             foreach ($ausers as $auser) {
                 $final_grade = $grading_info->items[0]->grades[$auser->id];
