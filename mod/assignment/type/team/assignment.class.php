@@ -1176,10 +1176,9 @@ class assignment_team extends assignment_upload {
      * @return team object
      */
     function get_user_team($userid ){
-        global $CFG;
-        $teams = get_records_sql("SELECT id, assignment, name, membershipopen".
-                                 " FROM {$CFG->prefix}team ".
-                                 " WHERE assignment = ".$this->assignment->id);
+        global $CFG, $DB;
+			 
+	$teams = $DB->get_records('team', array('assignment'=>$this->assignment->id));
         if ($teams) {
             foreach($teams as $team) {
                 $teamid = $team->id;
@@ -1214,11 +1213,9 @@ class assignment_team extends assignment_upload {
      * @return array of users or boolean if not found
      */
     function get_members_from_team ($teamid) {
-        global $CFG;
+        global $CFG, $DB;
         $validmembers = array();
-        $allmembers = get_records_sql("SELECT id, student, timemodified".
-                                 " FROM {$CFG->prefix}team_student ".
-                                 " WHERE team = ".$teamid);
+	$allmembers = $DB->get_records('team_student', array('team'=>$teamid));		 
         if ($allmembers) {
             foreach ($allmembers as $member) {
                 if ($this->is_user_course_participant($member->student)) {
@@ -1348,15 +1345,11 @@ class assignment_team extends assignment_upload {
      * @return unknown_type
      */
     function print_team_list(){
-        global $CFG;
+        global $CFG, $DB;
         $viewmemberact = optional_param('act_viewmember', NULL, PARAM_ALPHA);
         $groups = optional_param('groups', NULL, PARAM_INT);
-        $teams = get_records_sql("SELECT id, assignment, name, membershipopen".
-                                 " FROM {$CFG->prefix}team ".
-                                 " WHERE assignment = ".$this->assignment->id);
-        
-        
-        
+        $teams = $DB->get_records('team', array('assignment'=>$this->assignment->id));
+    
         //datas
         $datas = array('viewmemberact'=>$viewmemberact,
                        'groups'=>$groups, 
@@ -1866,10 +1859,14 @@ class assignment_team extends assignment_upload {
                           s.id AS submissionid, s.grade, s.submissioncomment,
                           s.timemodified, s.timemarked,
                           COALESCE(SIGN(SIGN(s.timemarked) + SIGN(s.timemarked - s.timemodified)), 0) AS status ';
-        $sql = 'FROM '.$CFG->prefix.'user u '.
-               'LEFT JOIN '.$CFG->prefix.'assignment_submissions s ON u.id = s.userid
-                                                                  AND s.assignment = '.$this->assignment->id.' '.
-               'WHERE '.$where.'u.id IN ('.implode(',',$users).') ';
+			  
+	list($usql, $params) = $DB->get_in_or_equal($users);
+	$param['assignment'] = $this->assignment->id;
+		  
+        $sql = 'FROM {user} u '.
+               'LEFT JOIN {assignment_submissions} s ON u.id = s.userid '.
+               'AND s.assignment = :assignment '.
+               'WHERE '.$where." u.id IN $usql ";
 
         $table->pagesize($perpage, count($users));
 
@@ -1877,7 +1874,8 @@ class assignment_team extends assignment_upload {
         $strgrade  = get_string('grade');
         $grademenu = make_grades_menu($this->assignment->grade);
 
-        if (($ausers = get_records_sql($select.$sql.$sort, $table->get_page_start(), $table->get_page_size())) !== false) {
+        //if (($ausers = get_records_sql($select.$sql.$sort, $table->get_page_start(), $table->get_page_size())) !== false) {
+	if (($ausers = $DB->get_records_sql($select.$sql.$sort, $param) {
             $grading_info = grade_get_grades($this->course->id, 'mod', 'assignment', $this->assignment->id, array_keys($ausers));
             foreach ($ausers as $auser) {
                 $final_grade = $grading_info->items[0]->grades[$auser->id];
@@ -2891,11 +2889,10 @@ class assignment_team extends assignment_upload {
     
 
     private function get_teams() {
-        global $CFG;
+        global $CFG, $DB;
         $validteams = array();    
-        $allteams = get_records_sql("SELECT id, assignment, name, membershipopen".
-                                 " FROM {$CFG->prefix}team ".
-                                 " WHERE assignment = ".$this->assignment->id);
+			 
+	$allteams = $DB->get_records('team', array('assignment'=>$this->assignment->id));
         if ($allteams && is_array($allteams)) {
             foreach ($allteams as $team) {
                 if ($this->has_members($team->id)) {
@@ -3139,16 +3136,23 @@ class assignment_team extends assignment_upload {
     }
     
     private function is_user_course_participant($userid) {
-        global $CFG;
+        global $CFG, $DB;
         $studentrole = 5;
         $context = get_context_instance(CONTEXT_COURSE, $this->assignment->course);
         $contextid = $context->id;
-        $sql =  "SELECT u.id FROM {$CFG->prefix}user u INNER JOIN ".
-               "{$CFG->prefix}role_assignments ra on u.id=ra.userid ".
-               "WHERE u.id = {$userid} ".
-               "AND ra.contextid = {$contextid} ".
-               "AND ra.roleid = {$studentrole}";
-        if (get_records_sql($sql)) {
+        //$sql =  "SELECT u.id FROM {$CFG->prefix}user u INNER JOIN ".
+        //       "{$CFG->prefix}role_assignments ra on u.id=ra.userid ".
+        //       "WHERE u.id = {$userid} ".
+        //       "AND ra.contextid = {$contextid} ".
+        //       "AND ra.roleid = {$studentrole}";
+	$params = array('userid' => $userid, 'contextid' => $contextid, 'studentrole' => $studentrole);
+        $sql =  "SELECT u.id FROM {user} u INNER JOIN ".
+               "{role_assignments} ra on u.id=ra.userid ".
+               "WHERE u.id = :userid ".
+               "AND ra.contextid = :contextid ".
+               "AND ra.roleid = :studentrole";
+	       	       
+        if ($DB->get_record_sql($sql, $params)) {
             return true;
         }
         return false;
@@ -3190,15 +3194,16 @@ class assignment_team extends assignment_upload {
     * return null or array of tiifiles.
     */
    private function get_team_tiifiles($teamid) {
-   	   global $CFG;
+   	   global $CFG, $DB;
        $members = $this -> get_members_from_team ($teamid);
        if ($members) {
            $memberselection = $this -> get_selection_member_id_string($members);
-           $tiifiles = get_records_sql("SELECT id, course, module, instance, userid,
-                                   filename, tii, tiicode, tiiscore".
-                                   " FROM {$CFG->prefix}tii_files ".
-                                   " WHERE instance = ".$this->assignment->id.
-                                   " and userid in ".$memberselection );
+         //  $tiifiles = get_records_sql("SELECT id, course, module, instance, userid,
+          //                         filename, tii, tiicode, tiiscore".
+           //                        " FROM {$CFG->prefix}tii_files ".
+          //                         " WHERE instance = ".$this->assignment->id.
+           //                        " and userid in ".$memberselection );
+           $tiifiles = $DB->get_records('tii_files', array('instance' => $this->assignment->id,'userid' => $memberselection));	
            return $tiifiles;
        } else {
            return null;
