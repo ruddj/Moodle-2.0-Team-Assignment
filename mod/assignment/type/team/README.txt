@@ -1,11 +1,8 @@
-Steps to install team assignments type to a 1.9.x Moodle installation
+Steps to install team assignments type to a 2.0.x Moodle installation
 ====================================================================
 
 1) unzip team-assignment-type.zip at the moodle root or manually copy the team directory
    to <moodle root>/mod/assignment/type/
-
-2) edit <moodle root>/lang/en_utf8/assignment.php and add the following lines:
-$string['typeteam'] = 'Team Assignment';
 
 3) insert the extra lines contained in moodle-file.patch into <moodle root>/file.php. 
    Delete moodle-file.patch after inserting the extra lines.
