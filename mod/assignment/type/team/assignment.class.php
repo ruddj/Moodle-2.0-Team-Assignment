@@ -1,5 +1,5 @@
 <?php // $Id: assignment.class.php,v 1.32.2.15 2008/10/09 11:22:14 poltawski Exp $
-require_once($CFG->libdir.'/formslib.php');
+
 require_once($CFG->dirroot.'/mod/assignment/type/upload/assignment.class.php');
 
 /**
@@ -10,7 +10,7 @@ class assignment_team extends assignment_upload {
 
     function assignment_team($cmid='staticonly', $assignment=NULL, $cm=NULL, $course=NULL) {
         parent::assignment_upload($cmid, $assignment, $cm, $course);
-        $this->type = 'typeteam';
+        $this->type = 'team';
     }
 
     function view() {
@@ -33,11 +33,11 @@ class assignment_team extends assignment_upload {
         $this->view_header();
 
         if ($this->assignment->timeavailable > time()
-        and !has_capability('mod/assignment:grade', $this->context)      // grading user can see it anytime
-        and $this->assignment->var3) {                                   // force hiding before available date
-            print_simple_box_start('center', '', '', 0, 'generalbox', 'intro');
+          and !has_capability('mod/assignment:grade', $this->context)      // grading user can see it anytime
+          and $this->assignment->var3) {                                   // force hiding before available date
+            echo $OUTPUT->box_start('generalbox boxaligncenter', 'intro');
             print_string('notavailableyet', 'assignment');
-            print_simple_box_end();
+            echo $OUTPUT->box_end();
         } else {
             $this->view_intro();
         }
@@ -157,9 +157,10 @@ class assignment_team extends assignment_upload {
      * override super class method
      */
     function view_feedback($submission=NULL) {
-        global $USER, $CFG;
+        global $USER, $CFG, $DB, $OUTPUT;
         require_once($CFG->libdir.'/gradelib.php');
         error_log('view_feedback() method');
+	
         if (!$submission) { /// Get submission for this assignment
             error_log('submission is null');
             $submission = $this->get_submission($USER->id);
@@ -168,9 +169,9 @@ class assignment_team extends assignment_upload {
         if (empty($submission->timemarked)) {   /// Nothing to show, so print nothing
             error_log('check total response file');
             if ($this->count_total_responsefiles($USER->id)) {
-                print_heading(get_string('responsefiles', 'assignment', $this->course->teacher), '', 3);
+                echo $OUTPUT->heading(get_string('responsefiles', 'assignment'), 3);
                 $responsefiles = $this->print_responsefiles($USER->id, true);
-                print_simple_box($responsefiles, 'center');
+                echo $OUTPUT->box($responsefiles, 'generalbox boxaligncenter');
             }
             return;
         }
@@ -190,19 +191,19 @@ class assignment_team extends assignment_upload {
         $graded_date = $grade->dategraded;
         $graded_by   = $grade->usermodified;
 
-        /// We need the teacher info
-        if (!$teacher = get_record('user', 'id', $graded_by)) {
-            error('Could not find the teacher');
+    /// We need the teacher info
+        if (!$teacher = $DB->get_record('user', array('id'=>$graded_by))) {
+            print_error('cannotfindteacher');
         }
 
-        /// Print the feedback
-        print_heading(get_string('submissionfeedback', 'assignment'), '', 3);
+    /// Print the feedback
+        echo $OUTPUT->heading(get_string('submissionfeedback', 'assignment'), 3);
 
         echo '<table cellspacing="0" class="feedback">';
 
         echo '<tr>';
         echo '<td class="left picture">';
-        print_user_picture($teacher, $this->course->id, $teacher->picture);
+        echo $OUTPUT->user_picture($teacher);
         echo '</td>';
         echo '<td class="topic">';
         echo '<div class="from">';
@@ -240,26 +241,42 @@ class assignment_team extends assignment_upload {
         global $CFG;
         error_log('count total response files');
         $team = $this->get_user_team($userid);
-        $filearea = $this->file_area_name($userid).'/responses';
+	
+        //$filearea = $this->file_area_name($userid).'/responses';
+	
         $filecount = 0;
-        if ( is_dir($CFG->dataroot.'/'.$filearea) && $basedir = $this->file_area($userid)) {
-            $basedir .= '/responses';
-            if ($files = get_directory_list($basedir)) {
-                $filecount = $filecount +  count($files);
-            }
-        }
+	
+	if ($submission = $this->get_submission($userid)) {
+            $fs = get_file_storage();
+            $files = $fs->get_area_files($this->context->id, 'mod_assignment', 'response', $submission->id, "id", false);
+            $filecount = count($files);
+        } 
+	
         if (isset($team)) {
             $filecount = $filecount + $this->count_team_responsefiles($team->id);
         }
         
         return $filecount;
     }
+    
+    /*   function count_responsefiles($userid) {
+        if ($submission = $this->get_submission($userid)) {
+            $fs = get_file_storage();
+            $files = $fs->get_area_files($this->context->id, 'mod_assignment', 'response', $submission->id, "id", false);
+            $filecount = count($files);
+        } 
+    }
+    */
+
 
     private function count_team_responsefiles($teamid) {
         global $CFG;
         error_log('count team response files');
+	
         $teamfilearea = $this->team_file_area_name($teamid).'/responses';
+	
         $basedir = $CFG->dataroot.'/'.$teamfilearea;
+	
         error_log('base dir:'. $basedir);
         if (is_dir($basedir)) {
             error_log('base dir existing');
@@ -426,7 +443,7 @@ class assignment_team extends assignment_upload {
     }
 
     function view_upload_form($teamid) {
-        global $CFG, $USER;
+        global $CFG, $USER, $OUTPUT;
 
         $submission = $this->get_submission($USER->id);
 
@@ -467,7 +484,7 @@ class assignment_team extends assignment_upload {
 
         if ($this->isopen() and $this->can_finalize($submission)) {
             //print final submit button
-            print_heading(get_string('submitformarking','assignment'), '', 3);
+            echo $OUTPUT->heading(get_string('submitformarking','assignment'), 3);
             echo '<div style="text-align:center">';
             echo '<form method="post" action="upload.php">';
             echo '<fieldset class="invisiblefieldset">';
@@ -480,13 +497,13 @@ class assignment_team extends assignment_upload {
             echo '</form>';
             echo '</div>';
         } else if (!$this->isopen()) {
-            print_heading(get_string('nomoresubmissions','assignment'), '', 3);
+            echo $OUTPUT->heading(get_string('nomoresubmissions','assignment'), 3);
 
         } else if ($this->drafts_tracked() and $state = $this->is_finalized($submission)) {
             if ($state == ASSIGNMENT_STATUS_SUBMITTED) {
-                print_heading(get_string('submitedformarking','assignment'), '', 3);
+                echo $OUTPUT->heading(get_string('submitedformarking','assignment'), 3);
             } else {
-                print_heading(get_string('nomoresubmissions','assignment'), '', 3);
+                echo $OUTPUT->heading(get_string('nomoresubmissions','assignment'), 3);
             }
         } else {
             //no submission yet
@@ -598,7 +615,7 @@ class assignment_team extends assignment_upload {
      * @return string optional
      */
     function print_user_files($userid=0, $return=false, $teamid, $showdelete = true) {
-        global $CFG, $USER;
+        global $CFG, $USER, $OUTPUT, $PAGE;
         $mode    = optional_param('mode', '', PARAM_ALPHA);
         $offset  = optional_param('offset', 0, PARAM_INT);
 
@@ -610,7 +627,7 @@ class assignment_team extends assignment_upload {
         }
 
         $filearea = $this->team_file_area_name($teamid);
-        $output = '';
+        $output = $OUTPUT->box_start('files');
 
         $submission = $this->get_submission($userid);
 
@@ -623,7 +640,8 @@ class assignment_team extends assignment_upload {
         
         $strdelete   = get_string('delete');
 
-        if ($this->drafts_tracked() and $this->isopen() and !$this->is_finalized($submission) and !empty($mode)) {                 // only during grading
+        // only during grading
+        if ($this->drafts_tracked() and $this->isopen() and !$this->is_finalized($submission) and !empty($mode)) {
             $output .= '<strong>'.get_string('draft', 'assignment').':</strong><br />';
         }
 
@@ -674,7 +692,11 @@ class assignment_team extends assignment_upload {
             }
         }
 
-        $output = '<div class="files">'.$output.'</div>';
+        if ($submission) {
+            $renderer = $PAGE->get_renderer('mod_assignment');
+            $output .= $renderer->assignment_files($this->context, $submission->id);
+        }
+        $output .= $OUTPUT->box_end();
 
         if ($return) {
             return $output;
@@ -682,9 +704,8 @@ class assignment_team extends assignment_upload {
         echo $output;
     }
 
-    function upload() {
+   function upload($mform = null, $filemanager_options = null) {
         $action = required_param('action', PARAM_ALPHA);
-
         switch ($action) {
             case 'finalize':
                 $this->finalize();
@@ -696,18 +717,18 @@ class assignment_team extends assignment_upload {
                 $this->unfinalize();
                 break;
             case 'uploadresponse':
-                $this->upload_responsefile();
+                $this->upload_responsefile($mform, $filemanager_options);
                 break;
             case 'uploadteamresponse':
                 $this->upload_team_responsefile();
                 break;
             case 'uploadfile':
-                $this->upload_file();
+                $this->upload_file($mform, $filemanager_options);
             case 'savenotes':
             case 'editnotes':
                 $this->upload_notes();
             default:
-                error('Error: Unknow upload action ('.$action.').');
+                print_error('unknowuploadaction', '', '', $action);
         }
     }
     
@@ -752,7 +773,7 @@ class assignment_team extends assignment_upload {
         $teamid    = required_param('teamid', PARAM_INT);
         $mode      = required_param('mode', PARAM_ALPHA);
         $offset    = required_param('offset', PARAM_INT);
-        $returnurl = "submissions.php?id={$this->cm->id}&amp;teamid=$teamid&amp;userrep=$userrep&amp;mode=$mode&amp;offset=$offset&amp;forcerefresh=1";
+        $returnurl  = new moodle_url('/mod/assignment/submissions.php', array('id'=>$this->cm->id, 'teamid'=>$teamid, 'userrep'=>$userrep, 'mode'=>$mode, 'offset'=>$offset, 'forcerefresh'=>1));
 
         // create but do not add student submission date
         $submission = $this->get_submission($userrep);
@@ -2809,7 +2830,13 @@ class assignment_team extends assignment_upload {
         }
         return 0;
     }
-
+    
+    /*function count_user_files($itemid) {
+        $fs = get_file_storage();
+        $files = $fs->get_area_files($this->context->id, 'mod_assignment', 'submission', $itemid, "id", false);
+        return count($files);
+    }
+*/
     /**
      *
      * @param $userid
